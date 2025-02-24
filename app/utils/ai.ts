@@ -1,11 +1,10 @@
 import { createServerFn } from '@tanstack/start'
-import { Anthropic } from '@anthropic-ai/sdk'
 import * as Sentry from '@sentry/react'
-// import loggingMiddleware from '../middleware'
-export interface Message {
+import { Message as BaseMessage } from './llm/types'
+import { createLLMProvider } from './llm/providers'
+
+export interface Message extends BaseMessage {
     id: string
-    role: 'user' | 'assistant'
-    content: string
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are TanStack Chat, an AI assistant using Markdown for clear and structured responses. Format your responses following these guidelines:
@@ -60,9 +59,9 @@ export const genAIResponse = createServerFn({ method: 'GET' })
     }) => d)
     // .middleware([loggingMiddleware])
     .handler(async ({ data }) => {
-        const anthropic = new Anthropic({
+        const provider = createLLMProvider('anthropic', {
             apiKey: process.env.ANTHROPIC_API_KEY || '',
-        });
+        })
 
         // Filter out error messages and empty messages
         const formattedMessages = data.messages
@@ -80,25 +79,9 @@ export const genAIResponse = createServerFn({ method: 'GET' })
             ? `${DEFAULT_SYSTEM_PROMPT}\n\n${data.systemPrompt.value}`
             : DEFAULT_SYSTEM_PROMPT;
 
-        // Debug log to verify prompt layering
-        console.log('System Prompt Configuration:', {
-            hasCustomPrompt: data.systemPrompt?.enabled,
-            customPromptValue: data.systemPrompt?.value,
-            finalPrompt: systemPrompt
-        });
-
         try {
-            const response = await anthropic.messages.create({
-                model: "claude-3-5-sonnet-20241022",
-                max_tokens: 4096,
-                system: systemPrompt,
-                messages: formattedMessages,
-            });
-
-            if (response.content[0].type === 'text') {
-                return { text: response.content[0].text };
-            }
-            return { error: 'Unexpected response type' };
+            const response = await provider.generateResponse(formattedMessages, systemPrompt);
+            return response;
         } catch (error) {
             console.error('Error in genAIResponse:', error);
             Sentry.captureException(error);
