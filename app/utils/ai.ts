@@ -59,8 +59,11 @@ export const genAIResponse = createServerFn({ method: 'GET' })
     }) => d)
     // .middleware([loggingMiddleware])
     .handler(async ({ data }) => {
-        const provider = createLLMProvider('anthropic', {
-            apiKey: process.env.ANTHROPIC_API_KEY || '',
+        const provider = createLLMProvider('gemini', {
+            apiKey: process.env.GOOGLE_AI_API_KEY || '',
+            model: 'gemini-pro',
+            maxTokens: 4096,
+            temperature: 0.7
         })
 
         // Filter out error messages and empty messages
@@ -85,9 +88,6 @@ export const genAIResponse = createServerFn({ method: 'GET' })
         } catch (error) {
             console.error('Error in genAIResponse:', error);
             Sentry.captureException(error);
-            if (error instanceof Error && error.message.includes('rate limit')) {
-                return { error: 'Rate limit exceeded. Please try again in a moment.' };
-            }
-            return { error: error instanceof Error ? error.message : 'Failed to get AI response' };
+            return { error: 'Failed to generate response' };
         }
     });
